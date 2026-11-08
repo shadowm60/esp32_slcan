@@ -1,0 +1,15 @@
+menu "ESP32 SLCAN Bluetooth Configuration"
+    config ESP32_SLCAN_SSP_ENABLED
+        bool "Secure Simple Pairing"
+        depends on BT_CLASSIC_ENABLED
+        default y
+        help
+            Enable Secure Simple Pairing. If disabled, Bluedroid only supports
+            Legacy Pairing.
+
+    config ESP32_SLCAN_LOCAL_DEVICE_NAME
+        string "Local Device Name"
+        default "ESP32_SLCAN"
+        help
+            Bluetooth name advertised by the SLCAN adapter.
+endmenu
