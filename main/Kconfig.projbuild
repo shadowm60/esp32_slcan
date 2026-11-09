@@ -12,4 +12,15 @@ menu "ESP32 SLCAN Bluetooth Configuration"
         default "ESP32_SLCAN"
         help
             Bluetooth name advertised by the SLCAN adapter.
+
+    config ESP32_SLCAN_UART_BAUDRATE
+        int "SLCAN UART baud rate"
+        range 9600 3000000
+        default 921600
+        help
+            Baud rate used on UART0 for the SLCAN protocol when the UART
+            transport is selected. The bootloader and early startup logs still
+            use CONFIG_ESP_CONSOLE_UART_BAUDRATE; the firmware switches to this
+            rate (and silences logging) once the SLCAN transport starts.
+            921600 works with common USB-UART bridges (CP210x, CH340, FTDI).
 endmenu

@@ -69,10 +69,16 @@ esp_err_t slcan_transport_init(bool use_bluetooth)
         }
     }
 
-    esp_err_t err = uart_set_baudrate(UART_NUM_0, CONFIG_ESP_CONSOLE_UART_BAUDRATE);
+    /* Let pending boot/console output drain at the old baud rate before switching. */
+    uart_wait_tx_idle_polling(UART_NUM_0);
+
+    esp_err_t err = uart_set_baudrate(UART_NUM_0, CONFIG_ESP32_SLCAN_UART_BAUDRATE);
     if (err != ESP_OK) {
         return err;
     }
+
+    /* UART0 is now a pure SLCAN channel: keep log text out of the protocol stream. */
+    esp_log_set_vprintf(discard_log_output);
 
     return uart_flush_input(UART_NUM_0);
 }
@@ -189,10 +195,24 @@ void slcan_uart_rx_task(void *arg)
 {
     uint8_t data[64];
     while (1) {
-        int len = uart_read_bytes(UART_NUM_0, data, sizeof(data), portMAX_DELAY);
-        if (len > 0) {
-            slcan_feed_bytes(data, (size_t)len);
+        /* uart_read_bytes() only returns once the requested length has arrived or the
+         * timeout expires, so block for a single byte and then drain whatever else is
+         * already buffered. Short commands like "S6\r" are processed immediately. */
+        int len = uart_read_bytes(UART_NUM_0, data, 1, portMAX_DELAY);
+        if (len <= 0) {
+            continue;
         }
+
+        size_t buffered = 0;
+        if (uart_get_buffered_data_len(UART_NUM_0, &buffered) == ESP_OK && buffered > 0) {
+            size_t room = sizeof(data) - (size_t)len;
+            int more = uart_read_bytes(UART_NUM_0, data + len,
+                                       buffered < room ? buffered : room, 0);
+            if (more > 0) {
+                len += more;
+            }
+        }
+        slcan_feed_bytes(data, (size_t)len);
     }
 }
 
@@ -262,8 +282,5 @@ void app_main(void)
     xTaskCreatePinnedToCore(slcan_tx_task, "tx_tsk", 1024, NULL, TX_TASK_PRIO, NULL, tskNO_AFFINITY);
     xTaskCreatePinnedToCore(slcan_can_rx_task, "rx_tsk", 2048, NULL, RX_TASK_PRIO, NULL, tskNO_AFFINITY);
 
-    xSemaphoreGive(sync_stats_task);    
-    if (!use_bluetooth) {
-        esp_log_set_vprintf(discard_log_output);
-    }
+    xSemaphoreGive(sync_stats_task);
 }

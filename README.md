@@ -47,9 +47,13 @@ strapping requirements for the specific module/board before wiring a switch
 that drives this pin during reset; the board must still boot reliably in both
 switch positions.
 
-The current UART configuration is UART0 at **115200 baud** (from
-`CONFIG_ESP_CONSOLE_UART_BAUDRATE`), which differs from the Arduino sketch's
-500000 baud setting. Startup checks that UART0's driver and baud-rate setup
+The SLCAN UART is UART0 at **921600 baud** by default
+(`CONFIG_ESP32_SLCAN_UART_BAUDRATE`, set in menuconfig under "ESP32 SLCAN
+Bluetooth Configuration"); the Arduino sketch used 500000 baud. The bootloader
+and early startup logs still go out at `CONFIG_ESP_CONSOLE_UART_BAUDRATE`
+(115200); once the UART transport starts, the firmware switches baud rate and
+disables log output so only SLCAN traffic is sent. Host tools should flush
+their receive buffer after opening the port. Startup checks that UART0's driver and baud-rate setup
 succeed. In Bluetooth mode startup waits up to 10 seconds for the SPP server
 to start and become connectable/discoverable; it does not wait for a host to
 pair or connect. If the selected transport fails initialization or readiness,
@@ -79,8 +83,8 @@ byte `0x0D`) without adding other characters.
 
 1. Connect the board to a CAN transceiver and a properly terminated CAN bus.
 2. Select the transport with GPIO 12 and reset the board.
-3. Open the selected UART or Bluetooth SPP connection. For UART, use 115200
-   baud, 8 data bits, no parity, and 1 stop bit.
+3. Open the selected UART or Bluetooth SPP connection. For UART, use 921600
+   baud (or your configured `CONFIG_ESP32_SLCAN_UART_BAUDRATE`), 8 data bits, no parity, and 1 stop bit.
 4. Send SLCAN commands terminated by `CR`. Line feed (`LF`) bytes are ignored.
 5. Select the CAN bitrate with `S0` through `S8` **before** opening the CAN
    interface with `O` or `L`.
@@ -177,7 +181,7 @@ Status definitions:
 | Version (`V`) | Static `V1234` | **Partial/different** | ESP-IDF returns static `V0100` |
 | Lowercase version (`v`) | Not present | **Implemented (code)** | ESP-IDF addition; returns `v0100` |
 | Serial number (`N`) | Static `N2233` | **Partial/different** | ESP-IDF derives it from the Bluetooth address; test in both transport modes |
-| USB/UART SLCAN transport | Serial at 500000 baud | **Implemented (code)** | ESP-IDF uses UART0 at configured 115200 baud |
+| USB/UART SLCAN transport | Serial at 500000 baud | **Implemented (code)** | ESP-IDF uses UART0 at configurable baud (default 921600) |
 | Bluetooth Classic SPP transport | Explicitly not included | **Implemented (code)** | GPIO 12 selects transport; pair/connect and exercise commands |
 | CR-terminated commands, optional LF | Reads through CR | **Implemented (code)** | ESP-IDF accepts fragmented input and ignores LF; input accumulation resets when the 63-character buffer fills |
 | Help command (`h`) | Prints a human-readable help page | **Missing** | Non-standard command; no ESP-IDF help response |
@@ -193,7 +197,7 @@ and date alongside the results when using this checklist for a release.
 ### Setup and transport
 
 - [ ] Build and flash the firmware for the intended ESP32 target.
-- [ ] UART mode: leave GPIO 12 high/open, reset, connect at 115200 8N1, and
+- [ ] UART mode: leave GPIO 12 high/open, reset, connect at 921600 8N1, and
   confirm SLCAN commands receive responses.
 - [ ] Bluetooth mode: hold GPIO 12 low during reset, pair/connect to
   `ESP32_SLCAN`, and confirm SLCAN commands receive responses.
